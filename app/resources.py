@@ -29,8 +29,8 @@ auth = HTTPBasicAuth()
 # }
 
 
-def get_auth_token():
-    token = g.user.generate_auth_token()
+def get_auth_token(expiration=600):
+    token = g.user.generate_auth_token(expiration=expiration)
     return jsonify({ "token": token.decode("ascii") })
 
 
@@ -38,6 +38,8 @@ def get_auth_token():
 def verify_password(username_or_token, password):
     # first try to authenticate by token
     user = Users.verify_auth_token(username_or_token)
+    if user in ["expired", "invalid"]:
+        user = None
     if not user:
         # try to authenticate with username/password
         user = Users.query.filter_by(user_name=username_or_token).first()
@@ -103,8 +105,6 @@ class UserLoginAPI(Resource):
                     }, 200
             return response
 
-
-
         return {"message":"Invalid username_or_token and/or password - Try again"}, 403
 
 
@@ -128,13 +128,20 @@ class BucketListsAPI(Resource):
         super(BucketListsAPI, self).__init__()
 
     def get(self):
-        """
-        get bucketlists
-        :return: 
-        """
+        """gets all bucketlists belonging to user"""
+
         token = request.headers.get("token","")
         user = g.user
-        if user.verify_auth_token(token):
+
+        token_auth = user.verify_auth_token(token)
+
+        if token_auth in ["expired", "invalid"]:
+            if token_auth == "expired":
+                return {"message": "Expired token, request for a new one"}, 403
+            else:
+                return {"message": "Invalid token"}, 403
+
+        else:
             bucketlists = Bucketlists.get_all_for_user(user_id=user.id)
             results = []
 
@@ -151,7 +158,7 @@ class BucketListsAPI(Resource):
             response.status_code = 200
             return response
 
-        return {"message": "Invalid token"}
+
 
 
 
@@ -186,38 +193,34 @@ class BucketListsAPI(Resource):
 class BucketListAPI(Resource):
     """Gets , updates or deletes single bucketlist"""
     decorators = [auth.login_required]
-    pass
+    def put(self):
+        pass
+
+    def get(self):
+        pass
+
+    def delete(self):
+        pass
 
 
 
 class BucketListItemAPI(Resource):
-    """Create a new item in bucket list"""
+    """Updates or deletes a single bucketlist item"""
+
     decorators = [auth.login_required]
-    pass
+
+    def put(self):
+        pass
+
+    def delete(self):
+        pass
 
 
 
 class BucketListItemsAPI(Resource):
-    """Updates or deletes a single bucketlist item"""
+    """Create a new item in bucket list"""
+
     decorators = [auth.login_required]
-    pass
 
-#################################################################################################################
-# POST /auth/login                            Logs a user in
-
-# POST /auth/register                         Register a user
-
-# POST /bucketlists/                          Create a new bucket list
-# GET /bucketlists/                           List all the create\
-# d bucket lists
-
-# GET /bucketlists/<id>                       Get single bucket list
-# PUT /bucketlists/<id>                       Update this bucket list
-# DELETE /bucketlists/<id>                    Delete this single bucket list
-
-# POST /bucketlists/<id>/items/               Create a new item in bucket list
-
-# PUT /bucketlists/<id>/items/<item_id>       Update a bucket list item
-# DELETE /bucketlists/<id>/items/<item_id>    Delete an item in a bucket list
-#################################################################################################################
-
+    def post(self):
+        pass
