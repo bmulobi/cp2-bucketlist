@@ -24,38 +24,40 @@ auth = HTTPBasicAuth()
 class Users(db.Model):
     """Class represents the users table"""
 
-    __tablename__ = 'users'
+    __tablename__ = "users"
 
     id = db.Column(db.Integer, primary_key=True)
     user_name = db.Column(db.String(90))
-    password = db.column(db.String(100))
     date_registered = db.Column(db.DateTime, default=db.func.current_timestamp())
-    bucket_lists = db.relationship('Bucketlists', backref='user', lazy='dynamic')
+    user_password = db.Column(db.String(200))
+    bucket_lists = db.relationship("Bucketlists", backref="user", lazy="dynamic")
 
-    def __init__(self, username):
-        """initialize with username."""
+    def __init__(self, username, password):
+        """initialize with username and password"""
         self.user_name = username
+        self.user_password = pwd_context.encrypt(password)
 
     def hash_password(self, password):
         self.password_hash = pwd_context.encrypt(password)
 
     def verify_password(self, password):
-        return pwd_context.verify(password, self.password_hash)
+        return pwd_context.verify(password, self.user_password)
+
 
     def generate_auth_token(self, expiration=600):
-        s = Serializer(os.getenv['SECRET'], expires_in=expiration)
-        return s.dumps({'id': self.id})
+        s = Serializer(os.getenv("SECRET"), expires_in=expiration)
+        return s.dumps({"id": self.id})
 
     @staticmethod
     def verify_auth_token(token):
-        s = Serializer(os.getenv['SECRET'])
+        s = Serializer(os.getenv("SECRET"))
         try:
             data = s.loads(token)
         except SignatureExpired:
             return None    # valid token, but expired
         except BadSignature:
             return None    # invalid token
-        user = Users.query.get(data['id'])
+        user = Users.query.get(data["id"])
         return user
 
     def save(self):
@@ -73,23 +75,23 @@ class Users(db.Model):
     def __repr__(self):
         return "<Users: {}>".format(self.user_name)
 
-@auth.verify_password
-def verify_password(username_or_token, password):
-    # first try to authenticate by token
-    user = Users.verify_auth_token(username_or_token)
-    if not user:
-        # try to authenticate with username/password
-        user = Users.query.filter_by(user_name=username_or_token).first()
-        if not user or not user.verify_password(password):
-            return False
-    g.user = user
-    return True
+# @auth.verify_password
+# def verify_password(username_or_token, password):
+#     # first try to authenticate by token
+#     user = Users.verify_auth_token(username_or_token)
+#     if not user:
+#         # try to authenticate with username/password
+#         user = Users.query.filter_by(user_name=username_or_token).first()
+#         if not user or not user.verify_password(password):
+#             return False
+#     g.user = user
+#     return True
 
 
 class Bucketlists(db.Model):
     """This class represents the bucketlist table."""
 
-    __tablename__ = 'bucketlists'
+    __tablename__ = "bucketlists"
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50))
@@ -97,8 +99,8 @@ class Bucketlists(db.Model):
     date_modified = db.Column(
         db.DateTime, default=db.func.current_timestamp(),
         onupdate=db.func.current_timestamp())
-    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
-    items = db.relationship('BucketListItems', backref='bucketlist', lazy='dynamic')
+    created_by = db.Column(db.Integer, db.ForeignKey("users.id"))
+    items = db.relationship("BucketListItems", backref="bucketlist", lazy="dynamic")
 
     def __init__(self, name, user_id):
         """initialize with name."""
@@ -110,21 +112,21 @@ class Bucketlists(db.Model):
         db.session.commit()
 
     @staticmethod
-    def get_all_for_user(user_id):
-        return Bucketlists.query.filter(created_by=user_id)
+    def get_all_for_user(user_id=0):
+        return Bucketlists.query.filter_by(created_by=user_id)
 
     def delete(self):
         db.session.delete(self)
         db.session.commit()
 
     def __repr__(self):
-        return '<Bucketlists: {}>'.format(self.name)
+        return "<Bucketlists: {}>".format(self.name)
 
 
 class BucketListItems(db.Model):
     """Respresents table bucket_list_items"""
 
-    __tablename__ = 'bucket_list_items'
+    __tablename__ = "bucket_list_items"
 
     id = db.Column(db.Integer, primary_key=True)
     description = db.Column(db.String(200))
@@ -133,7 +135,7 @@ class BucketListItems(db.Model):
         db.DateTime, default=db.func.current_timestamp(),
         onupdate=db.func.current_timestamp())
     done = db.Column(db.Boolean, default=False)
-    bucket_id = db.Column(db.Integer, db.ForeignKey('bucketlists.id'))
+    bucket_id = db.Column(db.Integer, db.ForeignKey("bucketlists.id"))
 
     def __init__(self, description, bucket_id):
         """initialize with description."""
@@ -153,4 +155,4 @@ class BucketListItems(db.Model):
         db.session.commit()
 
     def __repr__(self):
-        return '<Bucketlists: {}>'.format(self.name)
+        return "<Bucketlists: {}>".format(self.name)
