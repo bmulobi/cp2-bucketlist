@@ -8,19 +8,6 @@ from app import db
 
 auth = HTTPBasicAuth()
 
-#################################################################################################################
-# POST /auth/login                            Logs a user in
-# POST /auth/register                         Register a user
-# POST /bucketlists/                          Create a new bucket list
-# GET /bucketlists/                           List all the created bucket lists
-# GET /bucketlists/<id>                       Get single bucket list
-# PUT /bucketlists/<id>                       Update this bucket list
-# DELETE /bucketlists/<id>                    Delete this single bucket list
-# POST /bucketlists/<id>/items/               Create a new item in bucket list
-# PUT /bucketlists/<id>/items/<item_id>       Update a bucket list item
-# DELETE /bucketlists/<id>/items/<item_id>    Delete an item in a bucket list
-#################################################################################################################
-
 class Users(db.Model):
     """Class represents the users table"""
 
@@ -54,9 +41,9 @@ class Users(db.Model):
         try:
             data = s.loads(token)
         except SignatureExpired:
-            return None    # valid token, but expired
+            return "expired"    # valid token, but expired
         except BadSignature:
-            return None    # invalid token
+            return "invalid"   # invalid token
         user = Users.query.get(data["id"])
         return user
 
@@ -74,18 +61,6 @@ class Users(db.Model):
 
     def __repr__(self):
         return "<Users: {}>".format(self.user_name)
-
-# @auth.verify_password
-# def verify_password(username_or_token, password):
-#     # first try to authenticate by token
-#     user = Users.verify_auth_token(username_or_token)
-#     if not user:
-#         # try to authenticate with username/password
-#         user = Users.query.filter_by(user_name=username_or_token).first()
-#         if not user or not user.verify_password(password):
-#             return False
-#     g.user = user
-#     return True
 
 
 class Bucketlists(db.Model):
