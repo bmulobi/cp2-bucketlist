@@ -267,8 +267,9 @@ class BucketlistTestCase(unittest.TestCase):
         self.client().post("/bucketlists/v1.0/", data={"name": "make billions"}, headers={"token": token})
         res2 = self.client().post("/bucketlists/v1.0/1/items/", data={"name": "make app"}, headers={"token": token})
         self.assertEqual(res2.status_code, 201)
-        self.client().delete("/bucketlists/v1.0/1/items/1", data={"name": "updated app"},
-                                    headers={"token": token})
+        self.client().delete("/bucketlists/v1.0/1/items/1",
+                             data={"name": "updated app"},
+                             headers={"token": token})
         res3 = self.client().get("/bucketlists/v1.0/1", headers={"token": token})
         self.assertNotIn('"name": "make app"', str(res3.data))
 
