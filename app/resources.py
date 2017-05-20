@@ -7,31 +7,9 @@ from app.models import Bucketlists, Users
 
 auth = HTTPBasicAuth()
 
-# response_fields = {
-#     "id": fields.Integer,
-#     "name": fields.String,
-#
-# "items": fields.Nested({
-#
-# "id": fields.Integer,
-#
-# "name
-# ": fields.String,
-#     "date_created": fields.DateTime,
-#
-# "date_modified": fields.DateTime,
-#
-# "done": fields.Boolean,
-#     }),
-#     "date_created": fields.DateTime,
-#     "date_modified": fields.DateTime,
-#     "created_by": fields.String,
-# }
-
-
 def get_auth_token(expiration=600):
     token = g.user.generate_auth_token(expiration=expiration)
-    return jsonify({ "token": token.decode("ascii") })
+    return jsonify({ "token": token.decode("utf-8") })
 
 
 @auth.verify_password
@@ -66,10 +44,9 @@ class UserRegistrationAPI(Resource):
         username = args["username"]
         password = args["password"]
 
-        # password = pwd_context.encrypt(password)
-
-        if Users.query.filter_by(user_name = username).first() is not None: # existing user
-            return {"username": "Username already exists"}
+        # check if user exists
+        if Users.query.filter_by(user_name = username).first() is not None:
+            return {"username": "Username already exists"}, 400
 
         user = Users(username, password)
         user.save()
@@ -82,6 +59,7 @@ class UserRegistrationAPI(Resource):
 
 class UserLoginAPI(Resource):
     """ Enables log in for registered users """
+    users = {}
 
     def __init__(self):
         self.reqparse = reqparse.RequestParser(bundle_errors=True)
@@ -98,14 +76,31 @@ class UserLoginAPI(Resource):
 
         if verify_password(username_or_token, password):
             user = g.user
+
             token = user.generate_auth_token(expiration=600)
-            response = {"username":user.user_name,
-                    "message":"You have logged in successfully",
-                    "token":token.decode("ascii")
-                    }, 200
+            token = token.decode("utf-8")
+            UserLoginAPI.users[user.id] = token
+
+            response = {"id": user.id,
+                        "username":user.user_name,
+                        "message":"You have logged in successfully",
+                        "token":token
+                       }, 200
             return response
 
         return {"message":"Invalid username_or_token and/or password - Try again"}, 403
+
+
+class UserLogOutAPI(Resource):
+    """ Enables log out for users """
+    decorators = [auth.login_required]
+
+    def delete(self):
+        user = g.user
+
+        if UserLoginAPI.users.get(user.id, None) is not None:
+            del UserLoginAPI.users[user.id]
+        del user
 
 
 class GetTokenAPI(Resource):
@@ -113,8 +108,11 @@ class GetTokenAPI(Resource):
     decorators = [auth.login_required]
 
     def get(self):
-        return get_auth_token()
+        user = g.user
+        token = get_auth_token()
+        UserLoginAPI.users[user.id] = token.data.decode("utf-8").split('"')[3]
 
+        return token
 
 class BucketListsAPI(Resource):
     """ creates new bucketlists and fetches existing bucketlists"""
@@ -133,7 +131,11 @@ class BucketListsAPI(Resource):
         token = request.headers.get("token","")
         user = g.user
 
-        token_auth = user.verify_auth_token(token)
+        # ensure token belongs to current user
+        if token != UserLoginAPI.users.get(user.id, ""):
+            return {"error": "Received token does not belong to you"}, 403
+
+        token_auth = Users.verify_auth_token(token)
 
         if token_auth in ["expired", "invalid"]:
             if token_auth == "expired":
@@ -167,6 +169,10 @@ class BucketListsAPI(Resource):
         creates new bucketlists
         """
         token = request.headers.get("token","")
+        user = g.user
+        # ensure token belongs to current user
+        if token != UserLoginAPI.users.get(user.id, ""):
+            return {"error": "Received token does not belong to you"}
 
         if Users.verify_auth_token(token):
             args = self.reqparse.parse_args()
