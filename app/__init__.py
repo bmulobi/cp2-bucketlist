@@ -17,7 +17,8 @@ def create_app(config_name):
                                BucketListAPI,
                                BucketListItemsAPI,
                                BucketListItemAPI,
-                               GetTokenAPI
+                               GetTokenAPI,
+                               UserLogOutAPI
                               )
 
 
@@ -37,5 +38,6 @@ def create_app(config_name):
     api.add_resource(BucketListAPI, "/bucketlists/v1.0/<id>", endpoint="bucketlist")
     api.add_resource(BucketListItemsAPI, "/bucketlists/v1.0/<id>/items/", endpoint="items")
     api.add_resource(BucketListItemAPI, "/bucketlists/v1.0/<id>/items/<item_id>", endpoint="item")
+    api.add_resource(UserLogOutAPI, "/bucketlists/v1.0/auth/logout/", endpoint="logout")
 
     return app
