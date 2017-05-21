@@ -17,6 +17,10 @@ class BucketlistTestCase(unittest.TestCase):
         with self.app.app_context():
             # create all tables
             db.create_all()
+        self.client().post("/bucketlists/v1.0/auth/register/", data={"username": "ben", "password": 1234})
+        res1 = self.client().post("/bucketlists/v1.0/auth/login/", data={"username_or_token": "ben", "password": 1234})
+        result_in_json = json.loads(res1.data.decode("utf-8"))
+        self.token = result_in_json['token']
 
     def tearDown(self):
         """teardown all initialized variables."""
@@ -24,6 +28,7 @@ class BucketlistTestCase(unittest.TestCase):
             # drop all tables
             db.session.remove()
             db.drop_all()
+
 
     def test_app_settings_configuration(self):
         """Test app settings"""
@@ -106,12 +111,8 @@ class BucketlistTestCase(unittest.TestCase):
     def test_api_can_create_new_bucketlist(self):
         """Test API can create bucketlist (POST - '/bucketlists/v1.0/')"""
 
-        self.client().post("/bucketlists/v1.0/auth/register/", data={"username": "ben", "password": 1234})
-        res1 = self.client().post("/bucketlists/v1.0/auth/login/", data={"username_or_token": "ben", "password": 1234})
-        result_in_json = json.loads(res1.data.decode("utf-8"))
-        token = result_in_json['token']
+        res2 = self.client().post("/bucketlists/v1.0/", data={"name":"make billions"}, headers={"Authorization":self.token})
 
-        res2 = self.client().post("/bucketlists/v1.0/", data={"name":"make billions"}, headers={"token":token})
         self.assertEqual(res2.status_code, 201)
         self.assertIn('"name": "make billions"', str(res2.data))
 
