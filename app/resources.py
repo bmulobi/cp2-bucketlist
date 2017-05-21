@@ -1,10 +1,12 @@
+import re
+
 from flask import request, jsonify, g
 from flask_restful import Resource
 from flask_restful import fields, marshal, reqparse
 from flask_httpauth import HTTPBasicAuth
 from functools import wraps
 
-
+from app import app_config
 from app.models import Bucketlists, Users, BucketListItems
 
 auth = HTTPBasicAuth()
@@ -190,6 +192,7 @@ class GetTokenAPI(Resource): # problem with decorator ##########################
 
         return token
 
+
 class BucketListsAPI(Resource):
     """ creates new bucketlists and fetches existing bucketlists"""
     decorators = [authorize_token]
@@ -337,15 +340,99 @@ class BucketListAPI(Resource):
 
 class BucketListItemAPI(Resource): # "/bucketlists/v1.0/<id>/items/<item_id>"
     """Updates or deletes a single bucketlist item"""
-
     decorators = [authorize_token]
 
-    def put(self):
-        """updates single bucketlist item"""
+    def __init__(self):
 
-    def delete(self):
-        pass
+        self.reqparse = reqparse.RequestParser(bundle_errors=True)
+        self.reqparse.add_argument("description", type=str,
+                                   help="new item description must be a string")
+        self.reqparse.add_argument("done", type=str,
+                                   help="new item description must be a string")
+        self.regex_names = r'(\(|\+|\?|\.|\*|\^|\$|\)|\&|\[|\]|\{|\}|\||\\|\`|\~|\!|\@|\#|\%|\_|\=|\;|\:|\"|\,|\<|\>|\/)'
+        super(BucketListItemAPI, self).__init__()
 
+    def put(self, id, item_id):
+        """updates single bucketlist item""" #/bucketlists/<id>/items/<item_id>
+
+        # ensure id and item_id are integers
+        if not id.isdigit() or not item_id.isdigit():
+            return {"error": "bucket id and item_id must be integers"}
+
+        # get user details from app context
+        user = g.user
+        args = self.reqparse.parse_args()
+        description = args["description"]
+        done = args["done"]
+
+        if not description and not done:
+            return {"error": "In order to update a bucketlist item" +
+                             " you must provide either a new description or status(done) or both " +
+                             "and status must be either true or false"
+                    }, 400
+
+        # check if bucket id exists for current user
+        if Bucketlists.query.filter_by(id=id, created_by=user.id).first():
+            # check if item id exists in the bucket
+            item = BucketListItems.query.filter_by(id=item_id, bucket_id=id).first()
+
+            # if item exists, make available updates("description or done or both)
+            if item:
+                if description:
+
+                    if re.search(self.regex_names, description) or len(str(description)) > 100:
+                        return {"error": "the given item description should not have " +
+                                         "special characters and length should not exceed 100 characters"
+                                }
+
+                    if BucketListItems.query.filter_by(description=description, bucket_id=id).first():
+                        return {"error": "the given item description already exists in the given bucket"}
+                    item.description = description
+                if done:
+                    item.done = done
+
+                # save update(s)
+                item.update()
+
+                return {"item id": item_id,
+                        "description": item.description,
+                        "bucket_id": id,
+                        "date_created": str(item.date_created),
+                        "date_modified": str(item.date_modified),
+                        "message": "item was updated successfully",
+                        "done": item.done
+                        }, 200
+
+            return {"error": "the given item id does not exist in the given bucketlist"}, 404
+
+        return {"error": "the given bucketlist id does not exist for the current user"}, 404
+
+    def delete(self, id, item_id):
+        """ deletes a single item given its id and bucketlist id"""
+
+        # get current user
+        user = g.user
+        # ensure id and item_id are integers
+        if not id.isdigit() or not item_id.isdigit():
+            return {"error": "bucket id and item_id must be integers"}, 400
+
+        # check if bucket id exists for current user
+        if Bucketlists.query.filter_by(id=id, created_by=user.id).first():
+            # check if item id exists in the bucket
+            item = BucketListItems.query.filter_by(id=item_id, bucket_id=id).first()
+
+            # if item exists, delete it
+            if item:
+                item.delete()
+                return {"item_id": item.id,
+                        "item_description": item.description,
+                        "bucket_id": item.bucket_id,
+                        "message": "item was deleted successfully"
+                        }, 200
+
+            return {"error": "the given item id does not exist in the given bucketlist"}, 404
+
+        return {"error": "the given bucketlist id does not exist for the current user"}, 404
 
 
 class BucketListItemsAPI(Resource):
@@ -355,8 +442,8 @@ class BucketListItemsAPI(Resource):
     def __init__(self):
 
         self.reqparse = reqparse.RequestParser(bundle_errors=True)
-        self.reqparse.add_argument("name", type=str, required=True,
-                                   help="Item name was not provided")
+        self.reqparse.add_argument("description", type=str, required=True,
+                                   help="Item description was not provided")
         super(BucketListItemsAPI, self).__init__()
 
     def post(self, id):
@@ -364,18 +451,18 @@ class BucketListItemsAPI(Resource):
 
         user = g.user
         args = self.reqparse.parse_args()
-        name = args["name"]
+        description = args["description"]
 
         # check if bucket id exists for current user
         bucket = Bucketlists.query.filter_by(id=id, created_by=user.id).first()
         if bucket is not None:
 
-            if name:
+            if description:
 
-                if BucketListItems.query.filter_by(bucket_id=id, description=name):
+                if BucketListItems.query.filter_by(bucket_id=id, description=description).first():
                     return {"error": "Item name already exists in bucket id " + id}
 
-                bucket_list_item = BucketListItems(name, id)
+                bucket_list_item = BucketListItems(description, id)
                 bucket_list_item.save()
 
                 return {"item id": bucket_list_item.id,
@@ -389,10 +476,6 @@ class BucketListItemsAPI(Resource):
             return {"error": "please provide an item name"}
 
         return {"error": "the bucketlist id does not exist"}
-
-
-
-
 
 
 #
