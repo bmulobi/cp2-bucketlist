@@ -55,6 +55,10 @@ class Users(db.Model):
     def get_all():
         return Users.query.all()
 
+    @staticmethod
+    def get_one(user_id):
+        return Users.query.filter_by(id=user_id).first()
+
     def delete(self):
         db.session.delete(self)
         db.session.commit()
@@ -75,7 +79,8 @@ class Bucketlists(db.Model):
         db.DateTime, default=db.func.current_timestamp(),
         onupdate=db.func.current_timestamp())
     created_by = db.Column(db.Integer, db.ForeignKey("users.id"))
-    items = db.relationship("BucketListItems", backref="bucketlist", lazy="dynamic")
+    items = db.relationship("BucketListItems", backref="bucketlist",
+                            cascade="save-update, merge, delete", lazy="dynamic")
 
     def __init__(self, name, user_id):
         """initialize with name."""
@@ -94,12 +99,15 @@ class Bucketlists(db.Model):
         db.session.delete(self)
         db.session.commit()
 
+    def update(self):
+        return db.session.commit()
+
     def __repr__(self):
         return "<Bucketlists: {}>".format(self.name)
 
 
 class BucketListItems(db.Model):
-    """Respresents table bucket_list_items"""
+    """Reepresents table bucket_list_items"""
 
     __tablename__ = "bucket_list_items"
 
