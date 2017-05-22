@@ -100,7 +100,7 @@ class Bucketlists(db.Model):
         db.session.commit()
 
     def update(self):
-        return db.session.commit()
+        db.session.commit()
 
     def __repr__(self):
         return "<Bucketlists: {}>".format(self.name)
@@ -135,6 +135,9 @@ class BucketListItems(db.Model):
 
     def delete(self):
         db.session.delete(self)
+        db.session.commit()
+
+    def update(self):
         db.session.commit()
 
     def __repr__(self):
