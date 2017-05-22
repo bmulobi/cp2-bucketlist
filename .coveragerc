@@ -1,0 +1,4 @@
+[run]
+omit = *sqlalchemy*, *passlib*, *model.py*, *numbers.py*, *decimal.py*, *sqlite3*,
+ *werkzeug*, *asyncio*, *mimetypes.py*, *html*, *psycopg2*, *uuid.py*, *concurrent*,*jinja2*, *click*, *flask*, *markupsafe*, *crypt.py*, *encodings*, *hmac.py*, *ctypes*, *http*, *multiprocessing*, *stringprep.py*,
+ *itsdangerous.py*, *jwt*, *aniso8601/*, *dateutil/_*, *pytz/*,*six.py*, *pydoc.py*, *dateutil/*
