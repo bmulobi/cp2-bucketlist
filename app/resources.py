@@ -1,6 +1,7 @@
+import os
 import re
 
-from flask import request, jsonify, g
+from flask import request, jsonify, g, url_for
 from flask_restful import Resource
 from flask_restful import fields, marshal, reqparse
 from flask_httpauth import HTTPBasicAuth
@@ -10,6 +11,27 @@ from app import app_config
 from app.models import Bucketlists, Users, BucketListItems
 
 auth = HTTPBasicAuth()
+
+item_format = {
+    "id": fields.Integer,
+    "description": fields.String,
+    "date_created": fields.DateTime,
+    "date_modified": fields.DateTime,
+    "done": fields.Boolean,
+    "bucket_id": fields.Integer
+}
+
+bucketlist_format = {
+    "id": fields.Integer,
+    "name": fields.String,
+    "date_created": fields.DateTime,
+    "date_modified": fields.DateTime,
+    "created_by": fields.Integer
+
+    }
+
+regexes = {"names": r'(\(|\+|\?|\.|\*|\^|\$|\)|\&|\[|\]|\{|\}|\||\\|\`|\~|\!|\@|\#|\%|\_|\=|\;|\:|\"|\,|\<|\>|\/)',
+           "bucket_names": r'(\(|\+|\?|\.|\*|\^|\$|\)|\&|\[|\]|\{|\}|\||\\|\`|\~|\!|\@|\#|\%|\_|\=|\;|\:|\"|\,|\<|\>|\/)'}
 
 def authorize_token(func):
     """
@@ -63,15 +85,6 @@ def authorize_token(func):
         return func(*args, **kwargs)
     return decorators
 
-#
-# def login_required(f):
-#     @wraps(f)
-#     def decorated_function(*args, **kwargs):
-#         if g.user is None:
-#             return {"error": "you are not logged in"}
-#         return f(*args, **kwargs)
-#     return decorated_function
-
 
 def get_auth_token(expiration=600):
     token = g.user.generate_auth_token(expiration=expiration)
@@ -110,6 +123,14 @@ class UserRegistrationAPI(Resource):
         args = self.reqparse.parse_args()
         username = args["username"]
         password = args["password"]
+
+        # check username format
+        if re.search(regexes["names"], username):
+            return {"error": "Invalid username format"}, 400
+
+        # check username length
+        if len(str(username)) > 50:
+            return {"error": "Username should not exceed 50 characters"}, 400
 
         # check if user exists
         if Users.query.filter_by(user_name = username).first() is not None:
@@ -200,29 +221,82 @@ class BucketListsAPI(Resource):
     def __init__(self):
 
         self.reqparse = reqparse.RequestParser(bundle_errors=True)
-        self.reqparse.add_argument("name", type=str, required=True,
+        self.reqparse.add_argument("name", type=str, required=False,
                                    help="No bucketlist name provided")
+        self.reqparse.add_argument("limit", type=int, required=False,
+                                   help="Limit has to be a number between 1 and 100")
+        self.reqparse.add_argument("page", type=int, required=False,
+                                   help="page number has to be a number greater than zero")
+        self.reqparse.add_argument("q", type=str, required=False,
+                                   help="search parameter has to be a string")
         super(BucketListsAPI, self).__init__()
 
     def get(self):
         """gets all bucketlists belonging to user"""
 
-        user = g.user
-        bucketlists = Bucketlists.get_all_for_user(user_id=user.id)
-        results = []
+        # get request data dictionary
+        args = self.reqparse.parse_args()
 
-        for bucketlist in bucketlists:
-            obj = {
-                "id": bucketlist.id,
-                "name": bucketlist.name,
-                "date_created": bucketlist.date_created,
-                "created_by": user.id,
-                "date_modified": bucketlist.date_modified
-            }
-            results.append(obj)
-        response = jsonify(results)
-        response.status_code = 200
-        return response
+        # get logged in user
+        user = g.user
+        limit = app_config[os.getenv("APP_SETTINGS")].BUCKETLISTS_PER_PAGE
+
+        # get page to display
+        page = args["page"]
+        if page:
+            if page < 1:
+                page = 1
+        else:
+            page = 1
+
+        # get query parameter if any
+        query = args["q"]
+
+        # get per page limit
+        limit = args["limit"]
+        if limit:
+            if limit > app_config[os.getenv("APP_SETTINGS")].MAX_BUCKETLISTS_PER_REQUEST:
+                limit = app_config[os.getenv("APP_SETTINGS")].MAX_BUCKETLISTS_PER_REQUEST
+            if limit < 1:
+                limit = app_config[os.getenv("APP_SETTINGS")].BUCKETLISTS_PER_PAGE
+        else:
+            limit = app_config[os.getenv("APP_SETTINGS")].BUCKETLISTS_PER_PAGE
+
+        if query:
+            q = "&q={}"
+            bucketlists = (Bucketlists.query.filter(Bucketlists.name.
+                                                    ilike("%{}%".format(query))).
+                           filter_by(created_by=user.id).paginate(page, limit, False))
+            if not bucketlists:
+                return {"info": "no results for search query " + query}
+        else:
+            q = ""
+            query = ""
+            bucketlists = (Bucketlists.query.
+                           filter_by(created_by=user.id).paginate(page, limit, False))
+
+        if bucketlists.has_next:
+            url_next = (url_for(request.endpoint) +
+                        "?page=" + str(page + 1) +
+                        "&limit=" + str(limit) +
+                        q.format(query))
+        else:
+            url_next = "Null"
+
+        if bucketlists.has_prev:
+            url_prev = (url_for(request.endpoint) +
+                        "?page=" + str(page - 1) +
+                        "&limit=" + str(limit) +
+                        q.format(query))
+        else:
+            url_prev = "Null"
+
+        return {"info": {"next_page": url_next,
+                         "previous_page": url_prev,
+                         "total_pages": bucketlists.pages},
+                "bucketlists":
+                    marshal(bucketlists.items, bucketlist_format)
+                }, 200
 
     def post(self):
         """
@@ -233,6 +307,14 @@ class BucketListsAPI(Resource):
         name = args["name"]
 
         if name:
+
+            # check bucket name format
+            if re.search(regexes["names"], name):
+                return {"error": "Invalid bucket name format"}, 400
+
+            # check bucket name length
+            if len(str(name)) > 50:
+                return {"error": "Bucket name should not exceed 50 characters"}, 400
 
             # check if bucket name already exists
             if Bucketlists.query.filter_by(name=name).first() is not None:
@@ -271,6 +353,14 @@ class BucketListAPI(Resource):
         name = args["name"]
         user = g.user
         if name:
+            # check bucket name format
+            if re.search(regexes["names"], name):
+                return {"error": "Invalid bucket name format"}, 400
+
+            # check bucket name length
+            if len(str(name)) > 50:
+                return {"error": "Bucket name should not exceed 50 characters"}, 400
+
             # check if bucket id exists
             bucket =  Bucketlists.query.filter_by(id=id, created_by=user.id).first()
             if bucket is not None:
@@ -282,7 +372,7 @@ class BucketListAPI(Resource):
                         "date_created": str(bucket.date_created),
                         "date_modified": str(bucket.date_modified)
                         }, 200
-            return {"error": "the given bucket id -" + id + "- does not exist"}, 404
+            return {"error": "the given bucket id -" + str(id) + "- does not exist"}, 404
 
         return {"error": "A new bucket name was not provided"}, 400
 
@@ -319,7 +409,7 @@ class BucketListAPI(Resource):
                                             )
             return response, 200
 
-        return {"error": "the given bucket id -" + id + "- does not exist"}, 404
+        return {"error": "the given bucket id -" + str(id) + "- does not exist"}, 404
 
     def delete(self, id):
         """ delete bucketlist with given id """
@@ -349,14 +439,13 @@ class BucketListItemAPI(Resource): # "/bucketlists/v1.0/<id>/items/<item_id>"
                                    help="new item description must be a string")
         self.reqparse.add_argument("done", type=str,
                                    help="new item description must be a string")
-        self.regex_names = r'(\(|\+|\?|\.|\*|\^|\$|\)|\&|\[|\]|\{|\}|\||\\|\`|\~|\!|\@|\#|\%|\_|\=|\;|\:|\"|\,|\<|\>|\/)'
         super(BucketListItemAPI, self).__init__()
 
     def put(self, id, item_id):
         """updates single bucketlist item""" #/bucketlists/<id>/items/<item_id>
 
         # ensure id and item_id are integers
-        if not id.isdigit() or not item_id.isdigit():
+        if not str(id).isdigit() or not str(item_id).isdigit():
             return {"error": "bucket id and item_id must be integers"}
 
         # get user details from app context
@@ -380,7 +469,7 @@ class BucketListItemAPI(Resource): # "/bucketlists/v1.0/<id>/items/<item_id>"
             if item:
                 if description:
 
-                    if re.search(self.regex_names, description) or len(str(description)) > 100:
+                    if re.search(regexes["names"], description) or len(str(description)) > 100:
                         return {"error": "the given item description should not have " +
                                          "special characters and length should not exceed 100 characters"
                                 }
@@ -413,7 +502,7 @@ class BucketListItemAPI(Resource): # "/bucketlists/v1.0/<id>/items/<item_id>"
         # get current user
         user = g.user
         # ensure id and item_id are integers
-        if not id.isdigit() or not item_id.isdigit():
+        if not str(id).isdigit() or not str(item_id).isdigit():
             return {"error": "bucket id and item_id must be integers"}, 400
 
         # check if bucket id exists for current user
@@ -458,9 +547,16 @@ class BucketListItemsAPI(Resource):
         if bucket is not None:
 
             if description:
+                # check item name format
+                if re.search(regexes["names"], description):
+                    return {"error": "Invalid item name format"}, 400
+
+                # check item name length
+                if len(str(description)) > 50:
+                    return {"error": "item name should not exceed 50 characters"}, 400
 
                 if BucketListItems.query.filter_by(bucket_id=id, description=description).first():
-                    return {"error": "Item name already exists in bucket id " + id}
+                    return {"error": "Item name already exists in bucket id " + str(id)}, 400
 
                 bucket_list_item = BucketListItems(description, id)
                 bucket_list_item.save()
@@ -472,131 +568,7 @@ class BucketListItemsAPI(Resource):
                         "date_modified": str(bucket_list_item.date_modified),
                         "message": "was created successfully",
                         "done": bucket_list_item.done
-                        }
-            return {"error": "please provide an item name"}
+                        }, 201
+            return {"error": "please provide an item name"}, 400
 
-        return {"error": "the bucketlist id does not exist"}
-
-
-#
-# class BucketListsAPI(Resource):
-#     """ creates new bucketlists and fetches existing bucketlists"""
-#     decorators = [auth.login_required]
-#
-#     def __init__(self):
-#
-#         self.reqparse = reqparse.RequestParser(bundle_errors=True)
-#         self.reqparse.add_argument("name", type=str, required=True,
-#                                    help="No bucketlist name provided")
-#         super(BucketListsAPI, self).__init__()
-#
-#     def get(self):
-#         """gets all bucketlists belonging to user"""
-#
-#         token = request.headers.get("token","")
-#
-#         # if token in UserLoginAPI.users.values():
-#         #     user_id_token = [item for item in UserLoginAPI.users.items() if item[1] == token][0]
-#         #     key = user_id_token[0]
-#         #     del UserLoginAPI.users[key]
-#         #     user = Users.get_one(key)
-#
-#         user = g.user
-#
-#         # ensure token belongs to current user
-#         if token != UserLoginAPI.users.get(user.id, ""):
-#             return {"error": "Received token does not belong to you"}, 403
-#
-#         token_auth = Users.verify_auth_token(token)
-#
-#         if token_auth in ["expired", "invalid"]:
-#             if token_auth == "expired":
-#                 return {"message": "Expired token, request for a new one"}, 403
-#             else:
-#                 return {"message": "Invalid token"}, 403
-#
-#         else:
-#             bucketlists = Bucketlists.get_all_for_user(user_id=user.id)
-#             results = []
-#
-#             for bucketlist in bucketlists:
-#                 obj = {
-#                     "id": bucketlist.id,
-#                     "name": bucketlist.name,
-#                     "date_created": bucketlist.date_created,
-#                     "created_by": user.id,
-#                     "date_modified": bucketlist.date_modified
-#                 }
-#                 results.append(obj)
-#             response = jsonify(results)
-#             response.status_code = 200
-#             return response
-#
-#
-#
-#
-#
-#     def post(self):
-#         """
-#         creates new bucketlists
-#         """
-#         token = request.headers.get("token", "")
-#         user = g.user
-#
-#         # ensure token belongs to current user
-#         if token != UserLoginAPI.users.get(user.id, ""):
-#             return {"error": "Received token does not belong to you"}, 403
-#
-#         token_auth = Users.verify_auth_token(token)
-#
-#         if token_auth in ["expired", "invalid"]:
-#             if token_auth == "expired":
-#                 return {"message": "Expired token, request for a new one"}, 403
-#             else:
-#                 return {"message": "Invalid token"}, 403
-#
-#         else:
-#
-#             args = self.reqparse.parse_args()
-#             name = args["name"]
-#
-#             if name:
-#                 user_id = g.user.id
-#                 bucketlist = Bucketlists(name, user_id)
-#                 bucketlist.save()
-#                 response = {
-#                     "id": bucketlist.id,
-#                     "name": bucketlist.name,
-#                     "date_created": str(bucketlist.date_created),
-#                     "date_modified": str(bucketlist.date_modified),
-#                     "created by": user_id
-#                 }
-#
-#                 return response, 201
-#             return {"error": "No bucketlist name provided"}, 400
-
-
-# class UserLogOutAPI(Resource):
-#     """ Enables log out for users """
-#     decorators = [authorize_token]
-#
-#     def delete(self):
-#         token = request.headers.get("Authorization", "")
-#         user = g.user
-#         if token in UserLoginAPI.users.values():
-#             user_id_token = [item for item in UserLoginAPI.users.items() if item[1] == token][0]
-#             key = user_id_token[0]
-#             del UserLoginAPI.users[key]
-#             user = Users.get_one(key)
-#
-#             username = user.user_name
-#             del user
-#
-#             return {"id": key,
-#                     "username": username,
-#                     "message": "You have been logged out successfully"
-#                     }
-#
-#         else:
-#
-#             return {"error": "Invalid token in header"}
+        return {"error": "the bucketlist id does not exist"}, 400
