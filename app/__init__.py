@@ -8,7 +8,7 @@ from instance.config import app_config
 # initialize sql-alchemy
 db = SQLAlchemy()
 
-def create_app(config_name):
+def create_app(config_name="development"):
 
     from app.resources import (
                                BucketListsAPI,
