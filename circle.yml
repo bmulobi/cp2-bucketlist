@@ -5,10 +5,13 @@ machine:
 dependencies:
   post:
     - pip install -r requirements.txt
-    - source .env
 
 test:
   override:
+    - export FLASK_APP="run.py"
+    - export SECRET="mulobi-bernard-silla-cp2-bucketlist-ENV"
+    - export APP_SETTINGS="development"
+    - export DATABASE_URL="postgresql://localhost/buckets"
     - createdb buckets;
     - createdb test_db;
     - rm -rf migrations
