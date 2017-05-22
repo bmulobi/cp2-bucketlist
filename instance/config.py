@@ -17,12 +17,13 @@ class DevelopmentConfig(Config):
     DEBUG = True
     BUCKETLISTS_PER_PAGE = 2
     MAX_BUCKETLISTS_PER_REQUEST = 10
+    SQLALCHEMY_DATABASE_URI = "postgresql://@localhost/buckets"
 
 
 class TestingConfig(Config):
     """Configurations for Testing, with a separate test database."""
     TESTING = True
-    SQLALCHEMY_DATABASE_URI = "postgresql://localhost/test_db"
+    SQLALCHEMY_DATABASE_URI = "postgresql://@localhost/test_db"
     DEBUG = True
 
 class StagingConfig(Config):
