@@ -9,7 +9,7 @@ dependencies:
 
 test:
   override:
-    - createdb bucketlist_db;
+    - createdb buckets;
     - createdb test_db;
     - rm -rf migrations
     - python manage.py db init
