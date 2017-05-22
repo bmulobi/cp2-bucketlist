@@ -1,4 +1,5 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![CircleCI](https://circleci.com/gh/bmulobi/cp2-bucketlist.svg?style=svg)](https://circleci.com/gh/bmulobi/cp2-bucketlist)
 
 # cp2-bucketlist application - FLask-RESTful API
 
