@@ -12,7 +12,7 @@ test:
     - createdb bucketlist_db;
     - createdb test_db;
     - rm -rf migrations
-    - python manage.py databases init
-    - python manage.py databases migrate
-    - python manage.py databases upgrade
+    - python manage.py db init
+    - python manage.py db migrate
+    - python manage.py db upgrade
     - nosetests
