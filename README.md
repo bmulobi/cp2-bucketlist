@@ -58,7 +58,7 @@ GET bucketlists/v1.0/token/ | gets a fresh token | PRIVATE
 POST, GET bucketlists/v1.0/ | Creates and fetches bucketlists | PRIVATE
 GET, PUT, DELETE bucketlists/v1.0/<int:id>  | Gets and updates single bucket list with the given id | PRIVATE
 POST bucketlists/v1.0/bucketlists/<int:id>/items/ | Creates a new item in bucket list | PRIVATE
-PUT, DELETE bucketlists/v1.0/<int:iid>/items/<int:item_id> | Updates and deletes bucket list item | PRIVATE
+PUT, DELETE bucketlists/v1.0/<int:iid>/items/&lt;int:item_id&gt; | Updates and deletes bucket list item | PRIVATE
 
 ### Searching
 
