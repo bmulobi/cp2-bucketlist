@@ -3,7 +3,7 @@ machine:
     version: 3.6.1
 
   environment:
-    FLASK_APP: RUN.PY
+    FLASK_APP: run.py
     SECRET: mulobi-bernard-silla-cp2-bucketlist-ENV
     APP_SETTTINGS: development
     DATABASE_URL: postgresql://localhost/buckets
