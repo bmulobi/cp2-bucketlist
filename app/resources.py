@@ -12,15 +12,7 @@ from app.models import Bucketlists, Users, BucketListItems
 
 auth = HTTPBasicAuth()
 
-item_format = {
-    "id": fields.Integer,
-    "description": fields.String,
-    "date_created": fields.DateTime,
-    "date_modified": fields.DateTime,
-    "done": fields.Boolean,
-    "bucket_id": fields.Integer
-}
-
+# define format for bucketlist display
 bucketlist_format = {
     "id": fields.Integer,
     "name": fields.String,
@@ -30,69 +22,47 @@ bucketlist_format = {
 
     }
 
-regexes = {"names": r'(\(|\+|\?|\.|\*|\^|\$|\)|\&|\[|\]|\{|\}|\||\\|\`|\~|\!|\@|\#|\%|\_|\=|\;|\:|\"|\,|\<|\>|\/)',
-           "bucket_names": r'(\(|\+|\?|\.|\*|\^|\$|\)|\&|\[|\]|\{|\}|\||\\|\`|\~|\!|\@|\#|\%|\_|\=|\;|\:|\"|\,|\<|\>|\/)'}
+# regex for data validation (name formats)
+regexes = {"names": r'(\(|\+|\?|\.|\*|\^|\$|\)|\&|\[|\]|\{|\}|\||\\|\`|\~|\!|\@|\#|\%|\_|\=|\;|\:|\"|\,|\<|\>|\/)'}
 
+# decorator for private endpoints
 def authorize_token(func):
     """
-    Create a decorator function that ensures access control
+    Decorator function that controls access
+    based on validity of token
     """
-    # @wraps(func)
-    # def decorators(*args, **kwargs):
-    #     try:
-    #         # Get token from the header where the key is Authorization
-    #         token = request.headers['Authorization']
-    #         if not token:
-    #             return 'Unauthorized access. Please check your token', 401
-    #
-    #         token_auth = Users.verify_auth_token(token)
-    #
-    #         if token_auth in ["expired", "invalid"]:
-    #             if token_auth == "expired":
-    #                 return {"message": "Expired token, request for a new one"}, 403
-    #             else:
-    #                 return {"message": "Invalid token"}, 403
-    #
-    #         g.user = token_auth
-    #     except KeyError:
-    #         # Returns an informative error if the authorization
-    #         # header is not added
-    #         return {"error": "Please include your authorization token"}, 401
-    #     return func(*args, **kwargs)
-    # return decorators
-
     @wraps(func)
     def decorators(*args, **kwargs):
-        try:
-            # Get token from the header where the key is Authorization
-            token = request.headers.get("Authorization", "")
-            if not token:
-                return 'Unauthorized access. Please include your authorization token', 401
+        # Get token from the header where the key is Authorization
+        token = request.headers.get("Authorization", "")
+        if not token:
+            return 'Unauthorized access. Please include your authorization token', 401
 
-            token_auth = Users.verify_auth_token(token)
+        token_auth = Users.verify_auth_token(token)
 
-            if token_auth in ["expired", "invalid"]:
-                if token_auth == "expired":
-                    return {"message": "Expired token, request for a new one"}, 403
-                else:
-                    return {"message": "Invalid token"}, 403
+        if token_auth in ["expired", "invalid"]:
+            if token_auth == "expired":
+                return {"message": "Expired token, request for a new one"}, 403
+            else:
+                return {"message": "Invalid token"}, 403
 
-            g.user = token_auth
-        except AttributeError:
-            # Returns an informative error if the authorization
-            # header is not added
-            return {"error": "Forbidden, you must log in first"}, 403
+        g.user = token_auth
+
         return func(*args, **kwargs)
     return decorators
 
 
+# token generator
 def get_auth_token(expiration=600):
+    """generates new token for user"""
     token = g.user.generate_auth_token(expiration=expiration)
     return jsonify({ "token": token.decode("utf-8") })
 
 
+# password verifier
 @auth.verify_password
 def verify_password(username_or_token, password):
+    """verifies user password"""
     # first try to authenticate by token
 
     user = Users.verify_auth_token(username_or_token)
@@ -120,6 +90,7 @@ class UserRegistrationAPI(Resource):
         super(UserRegistrationAPI, self).__init__()
 
     def post(self):
+        """register new user"""
         args = self.reqparse.parse_args()
         username = args["username"]
         password = args["password"]
@@ -136,6 +107,7 @@ class UserRegistrationAPI(Resource):
         if Users.query.filter_by(user_name = username).first() is not None:
             return {"username": "Username already exists"}, 400
 
+        # get user object
         user = Users(username, password)
         user.save()
 
@@ -151,23 +123,36 @@ class UserLoginAPI(Resource):
 
     def __init__(self):
         self.reqparse = reqparse.RequestParser(bundle_errors=True)
-        self.reqparse.add_argument("username_or_token", type=str, required=True,
-                                   help="No username_or_token provided")
+        self.reqparse.add_argument("username", type=str, required=True,
+                                   help="No username provided")
         self.reqparse.add_argument("password", type=str, help="Password has to be a string")
         super(UserLoginAPI, self).__init__()
 
     def post(self):
-
+        """log in user"""
         args = self.reqparse.parse_args()
-        username_or_token = args["username_or_token"]
+        username = args["username"]
         password = args["password"]
 
-        if verify_password(username_or_token, password):
+        # check username format
+        if re.search(regexes["names"], username):
+            return {"error": "Invalid username format"}, 400
+
+        # check username length
+        if len(str(username)) > 50:
+            return {"error": "Username should not exceed 50 characters"}, 400
+
+        # ensure password does not exceed 50 characters
+        if password and len(str(password)) > 50:
+            return {"error": "Password should not exceed 50 characters"}, 400
+        # verify password
+        if verify_password(username, password):
 
             user = g.user
-
+            # generate token
             token = user.generate_auth_token(expiration=600)
             token = token.decode("utf-8")
+            # save token in memory
             UserLoginAPI.users[user.id] = token
 
             response = {"id": user.id,
@@ -181,34 +166,41 @@ class UserLoginAPI(Resource):
 
 
 class UserLogOutAPI(Resource):
-    """ Enables log out for users """
-    decorators = [authorize_token]
+    """ Enables log out for logged in users """
+    decorators = [auth.login_required]
 
     def delete(self):
-        token = request.headers.get("Authorization", "")
+        """log out user - delete user object and token"""
+        # get user object
         user = g.user
         user_id = user.id
 
-        if token in UserLoginAPI.users.values() and token == UserLoginAPI.users.get(user_id, ""):
-            del UserLoginAPI.users[user.id]
-            username = user.user_name
-            del user
-            del g.user
-            return {"id": user_id,
-                    "username": username,
-                    "message": "You have been logged out successfully"
-                    }
+        # get user's authorization token
+        token = UserLoginAPI.users.get(user_id, "")
+        # delete token from memory
+        if token:
+            del UserLoginAPI.users[user_id]
+        username = user.user_name
+        # delete user object from memory and application context
+        del user
+        del g.user
+        return {"id": user_id,
+                "username": username,
+                "message": "You have been logged out successfully"
+                }, 200
 
-        return {"error": "Invalid token in header"}
 
-
-class GetTokenAPI(Resource): # problem with decorator ############################################################################
+class GetTokenAPI(Resource):
     """enables logged in user to refresh their expired token"""
     decorators = [auth.login_required]
 
     def get(self):
+        """generates new token for user"""
+        # get user object
         user = g.user
+        # generate token
         token = get_auth_token()
+        # save token in memory
         UserLoginAPI.users[user.id] = token.data.decode("utf-8").split('"')[3]
 
         return token
@@ -244,9 +236,14 @@ class BucketListsAPI(Resource):
         # get page to display
         page = args["page"]
         if page:
+            # ensure given page number is an integer
+            if not str(page).isdigit():
+                return {"error": "Page number has to be an integer"}, 400
+
             if page < 1:
                 page = 1
         else:
+            # default page number
             page = 1
 
         # get query parameter if any
@@ -254,15 +251,30 @@ class BucketListsAPI(Resource):
 
         # get per page limit
         limit = args["limit"]
+
+        # ensure given limit is an integer
+        if not str(limit).isdigit():
+            return {"error": "Limit has to be an integer"}, 400
+        # ensure limit does not violate (min=1 and max=100)
         if limit:
             if limit > app_config[os.getenv("APP_SETTINGS")].MAX_BUCKETLISTS_PER_REQUEST:
                 limit = app_config[os.getenv("APP_SETTINGS")].MAX_BUCKETLISTS_PER_REQUEST
             if limit < 1:
                 limit = app_config[os.getenv("APP_SETTINGS")].BUCKETLISTS_PER_PAGE
         else:
+            # default limit
             limit = app_config[os.getenv("APP_SETTINGS")].BUCKETLISTS_PER_PAGE
-
+        # if user gave search term
         if query:
+
+            # check search term format
+            if re.search(regexes["names"], query):
+                return {"error": "Invalid search term format"}, 400
+
+            # check search term length
+            if len(str(query)) > 30:
+                return {"error": "Search term should not exceed 30 characters"}, 400
+            # search parameter when given
             q = "&q={}"
             bucketlists = (Bucketlists.query.filter(Bucketlists.name.
                                                     ilike("%{}%".format(query))).
@@ -270,32 +282,33 @@ class BucketListsAPI(Resource):
             if not bucketlists:
                 return {"info": "no results for search query " + query}
         else:
+            # search parameter when not given
             q = ""
             query = ""
             bucketlists = (Bucketlists.query.
                            filter_by(created_by=user.id).paginate(page, limit, False))
-
+        # set url for next page, if any
         if bucketlists.has_next:
             url_next = (url_for(request.endpoint) +
                         "?page=" + str(page + 1) +
                         "&limit=" + str(limit) +
                         q.format(query))
         else:
-            url_next = "Null"
-
+            url_next = "No next page"
+        # set url for previous page, if any
         if bucketlists.has_prev:
             url_prev = (url_for(request.endpoint) +
                         "?page=" + str(page - 1) +
                         "&limit=" + str(limit) +
                         q.format(query))
         else:
-            url_prev = "Null"
+            url_prev = "No previous page"
 
         return {"info": {"next_page": url_next,
                          "previous_page": url_prev,
                          "total_pages": bucketlists.pages},
-                "bucketlists":
-                    marshal(bucketlists.items, bucketlist_format)
+                         "bucketlists": marshal(bucketlists.items,
+                                                bucketlist_format)
                 }, 200
 
     def post(self):
@@ -349,6 +362,10 @@ class BucketListAPI(Resource):
     def put(self, id):
         """update bucketlist with given id"""
 
+        # ensure given id is an integer
+        if not str(id).isdigit():
+            return {"error": "Bucketlist id has to be an integer"}, 400
+
         args = self.reqparse.parse_args()
         name = args["name"]
         user = g.user
@@ -376,10 +393,12 @@ class BucketListAPI(Resource):
 
         return {"error": "A new bucket name was not provided"}, 400
 
-
-
     def get(self, id):
         """fetch bucketlist with given id"""
+
+        # ensure given id is an integer
+        if not str(id).isdigit():
+            return {"error": "Bucketlist id has to be an integer"}, 400
 
         user = g.user
         # check if bucket id exists
@@ -424,8 +443,8 @@ class BucketListAPI(Resource):
             return {"bucket_id": id,
                     "created_by": user.user_name,
                     "message": "was deleted succesfully"
-                    }
-        return {"error": "the given bucketlist id does not exist"}
+                    }, 200
+        return {"error": "the given bucketlist id does not exist"}, 400
 
 
 class BucketListItemAPI(Resource): # "/bucketlists/v1.0/<id>/items/<item_id>"
@@ -442,17 +461,30 @@ class BucketListItemAPI(Resource): # "/bucketlists/v1.0/<id>/items/<item_id>"
         super(BucketListItemAPI, self).__init__()
 
     def put(self, id, item_id):
-        """updates single bucketlist item""" #/bucketlists/<id>/items/<item_id>
+        """updates single bucketlist item"""
 
         # ensure id and item_id are integers
         if not str(id).isdigit() or not str(item_id).isdigit():
-            return {"error": "bucket id and item_id must be integers"}
+            return {"error": "bucket id and item_id must be integers"}, 400
 
         # get user details from app context
         user = g.user
         args = self.reqparse.parse_args()
         description = args["description"]
         done = args["done"]
+
+        # ensure item status is either true or false
+        if done and done not in ["true", "false"]:
+            return {"error": "done (item status) is either true or false"}, 400
+
+        if description:
+            # check item name format
+            if re.search(regexes["names"], description):
+                return {"error": "Invalid item name format"}, 400
+
+            # check item name length
+            if len(str(description)) > 100:
+                return {"error": "Item description should not exceed 100 characters"}, 400
 
         if not description and not done:
             return {"error": "In order to update a bucketlist item" +
@@ -472,10 +504,10 @@ class BucketListItemAPI(Resource): # "/bucketlists/v1.0/<id>/items/<item_id>"
                     if re.search(regexes["names"], description) or len(str(description)) > 100:
                         return {"error": "the given item description should not have " +
                                          "special characters and length should not exceed 100 characters"
-                                }
+                                }, 400
 
                     if BucketListItems.query.filter_by(description=description, bucket_id=id).first():
-                        return {"error": "the given item description already exists in the given bucket"}
+                        return {"error": "the given item description already exists in the given bucket"}, 400
                     item.description = description
                 if done:
                     item.done = done
@@ -541,6 +573,10 @@ class BucketListItemsAPI(Resource):
         user = g.user
         args = self.reqparse.parse_args()
         description = args["description"]
+
+        # ensure given id is an integer
+        if not str(id).isdigit():
+            return {"error": "Bucketlist id has to be an integer"}, 400
 
         # check if bucket id exists for current user
         bucket = Bucketlists.query.filter_by(id=id, created_by=user.id).first()
