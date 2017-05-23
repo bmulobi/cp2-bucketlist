@@ -34,7 +34,6 @@ class BucketlistTestCase(unittest.TestCase):
             db.session.remove()
             db.drop_all()
 
-
     def test_app_settings_configuration(self):
         """Test app settings"""
         app_settings = os.getenv("APP_SETTINGS")
@@ -54,7 +53,8 @@ class BucketlistTestCase(unittest.TestCase):
     def test_api_can_register_new_user(self):
         """Test API can register new user (POST - "/bucketlists/v1.0/auth/register/')"""
 
-        res = self.client().post("/bucketlists/v1.0/auth/register/", data={"username": "jon", "password": 1234})
+        res = self.client().post("/bucketlists/v1.0/auth/register/",
+                                 data={"username": "jon", "password": 1234})
         self.assertEqual(res.status_code, 201)
         self.assertIn("jon", str(res.data))
 
@@ -70,7 +70,6 @@ class BucketlistTestCase(unittest.TestCase):
                                  data={"username": "jon", "password": 1234})
         self.assertEqual(res.status_code, 400)
         self.assertIn('"username": "Username already exists"', str(res.data))
-
 
     def test_api_rejects_invalid_user_names(self):
         """Test api checks usernames for invalid formats"""
@@ -186,8 +185,7 @@ class BucketlistTestCase(unittest.TestCase):
         user = models.Users("ben","1234")
         new_token = user.generate_auth_token(2)
         new_token = str(new_token, "utf-8")
-       # import pdb; pdb.set_trace()
-        time.sleep(5)
+        time.sleep(3)
         res2 = self.client().post("/bucketlists/v1.0/", data={"name": "make billions"},
                                   headers={"Authorization": new_token})
 
