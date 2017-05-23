@@ -8,6 +8,7 @@ from instance.config import app_config
 # initialize sql-alchemy
 db = SQLAlchemy()
 
+# default settings is development
 def create_app(config_name="development"):
 
     from app.resources import (
@@ -20,7 +21,7 @@ def create_app(config_name="development"):
                                GetTokenAPI,
                                UserLogOutAPI
                               )
-
+    # instantiate app
     app = FlaskAPI(__name__, instance_relative_config=True)
     app.config.from_object(app_config[config_name])
     app.config.from_pyfile("config.py")
