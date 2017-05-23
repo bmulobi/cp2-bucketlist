@@ -17,13 +17,18 @@ class BucketlistTestCase(unittest.TestCase):
         with self.app.app_context():
             # create all tables
             db.create_all()
-        self.client().post("/bucketlists/v1.0/auth/register/", data={"username": "ben", "password": 1234})
-        res1 = self.client().post("/bucketlists/v1.0/auth/login/", data={"username_or_token": "ben", "password": 1234})
+        # create a user
+        self.client().post("/bucketlists/v1.0/auth/register/",
+                           data={"username": "ben", "password": 1234})
+        # log in the user
+        res1 = self.client().post("/bucketlists/v1.0/auth/login/",
+                                  data={"username": "ben", "password": 1234})
         result_in_json = json.loads(res1.data.decode("utf-8"))
+        # get authorisation token
         self.token = result_in_json['token']
 
     def tearDown(self):
-        """teardown all initialized variables."""
+        """delete all initialized variables."""
         with self.app.app_context():
             # drop all tables
             db.session.remove()
@@ -59,8 +64,10 @@ class BucketlistTestCase(unittest.TestCase):
         names (POST - "/bucketlists/v1.0/auth/register/')
         """
 
-        self.client().post("/bucketlists/v1.0/auth/register/", data={"username": "jon", "password": 1234})
-        res = self.client().post("/bucketlists/v1.0/auth/register/", data={"username": "jon", "password": 1234})
+        self.client().post("/bucketlists/v1.0/auth/register/",
+                           data={"username": "jon", "password": 1234})
+        res = self.client().post("/bucketlists/v1.0/auth/register/",
+                                 data={"username": "jon", "password": 1234})
         self.assertEqual(res.status_code, 400)
         self.assertIn('"username": "Username already exists"', str(res.data))
 
@@ -89,10 +96,80 @@ class BucketlistTestCase(unittest.TestCase):
 
     def test_api_can_login_valid_user(self):
         """Test API can login valid user (POST - '/bucketlists/v1.0/auth/login/')"""
-        self.client().post("/bucketlists/v1.0/auth/register/", data={"username": "bentest", "password": 1234})
-        res = self.client().post("/bucketlists/v1.0/auth/login/", data={"username_or_token": "bentest", "password": 1234})
+        self.client().post("/bucketlists/v1.0/auth/register/",
+                           data={"username": "bentest", "password": 1234})
+        res = self.client().post("/bucketlists/v1.0/auth/login/",
+                                 data={"username": "bentest", "password": 1234})
         self.assertEqual(res.status_code, 200)
         self.assertIn('"username": "bentest"', str(res.data))
+
+    def test_api_login_rejects_invalid_user_names(self):
+        """Test api login checks usernames for invalid formats"""
+
+        res = self.client().post("/bucketlists/v1.0/auth/login/",
+                                 data={"username": "bendbvg987^&%^$#$__8765634&*^^%$#$#@$%",
+                                       "password": 1234}
+                                 )
+        self.assertEqual(res.status_code, 400)
+        self.assertIn('"error": "Invalid username format"', str(res.data))
+
+    def test_api_login_rejects_user_names_longer_than_50_characters(self):
+        """Test api login checks username length"""
+
+        res = self.client().post("/bucketlists/v1.0/auth/login/",
+                                 data={"username": "greater-than-fifty-greater-than-fifty-" +
+                                                            "greater-than-fifty-greater-than-fifty",
+                                       "password": 1234}
+                                 )
+        self.assertEqual(res.status_code, 400)
+        self.assertIn('"error": "Username should not exceed 50 characters"', str(res.data))
+
+    def test_api_login_rejects_passwords_longer_than_50_characters(self):
+        """Test api login checks password length"""
+
+        res = self.client().post("/bucketlists/v1.0/auth/login/",
+                                 data={"username": "ben",
+                                       "password": "greater-than-fifty-greater-than-fifty-" +
+                                                   "greater-than-fifty-greater-than-fifty"}
+                                 )
+        self.assertEqual(res.status_code, 400)
+        self.assertIn('"error": "Password should not exceed 50 characters"', str(res.data))
+
+    def test_api_rejects_invalid_limit_parameter(self):
+        """Test api rejects invalid limit parameter"""
+
+        res = self.client().get("/bucketlists/v1.0/?limit=dkj",
+                                   headers={"Authorization": self.token}
+                                   )
+        self.assertEqual(res.status_code, 400)
+        self.assertIn('"limit": "Limit has to be a number between 1 and 100"', str(res.data))
+
+    def test_api_rejects_invalid_page_parameter(self):
+        """Test api rejects invalid page parameter"""
+
+        res = self.client().get("/bucketlists/v1.0/?page=dkj",
+                                headers={"Authorization": self.token}
+                                )
+        self.assertEqual(res.status_code, 400)
+        self.assertIn('"page": "page number has to be a number greater than zero"', str(res.data))
+
+    def test_api_rejects_invalid_search_parameter_format(self):
+        """Test api rejects invalid search parameter"""
+
+        res = self.client().get("/bucketlists/v1.0/?q=(*&*^^%&dkj",
+                                headers={"Authorization": self.token}
+                                )
+        self.assertEqual(res.status_code, 400)
+        self.assertIn('"error": "Invalid search term format"', str(res.data))
+
+    def test_api_rejects_search_parameter_greater_than_30_characters(self):
+        """Test api rejects > 30 search parameter"""
+
+        res = self.client().get("/bucketlists/v1.0/?q=awhfguwtf jwhguyewgfu jsdhyugytuewgf djbcjygu",
+                                headers={"Authorization": self.token}
+                                )
+        self.assertEqual(res.status_code, 400)
+        self.assertIn('"error": "Search term should not exceed 30 characters"', str(res.data))
 
     def test_api_rejects_invalid_token(self):
         """Test API rejects invalid token"""
@@ -120,7 +197,8 @@ class BucketlistTestCase(unittest.TestCase):
     def test_api_can_create_new_bucketlist(self):
         """Test API can create bucketlist (POST - '/bucketlists/v1.0/')"""
 
-        res2 = self.client().post("/bucketlists/v1.0/", data={"name":"make billions"}, headers={"Authorization":self.token})
+        res2 = self.client().post("/bucketlists/v1.0/", data={"name":"make billions"},
+                                  headers={"Authorization":self.token})
 
         self.assertEqual(res2.status_code, 201)
         self.assertIn('"name": "make billions"', str(res2.data))
@@ -163,11 +241,63 @@ class BucketlistTestCase(unittest.TestCase):
         self.assertEqual(res.status_code, 400)
         self.assertIn("No bucketlist name provided", str(res.data))
 
+    def test_api_rejects_invalid_format_bucket_names_during_updates(self):
+        """Test api rejects _invalid_format_bucket_names during updates"""
+
+        self.client().post("/bucketlists/v1.0/", data={"name": "bucket 1"},
+                                headers={"Authorization": self.token}
+                                )
+        res = self.client().put("/bucketlists/v1.0/1", data={"name": "fake*&*&^%"},
+                                headers={"Authorization": self.token}
+                                )
+        self.assertEqual(res.status_code, 400)
+        self.assertIn('"error": "Invalid bucket name format"', str(res.data))
+
+    def test_api_rejects_lengthy_bucket_names_during_updates(self):
+        """Test api rejects_lengthy_bucket_names_during_updates"""
+
+        self.client().post("/bucketlists/v1.0/", data={"name": "bucket 1"},
+                           headers={"Authorization": self.token}
+                           )
+        res = self.client().put("/bucketlists/v1.0/1",
+                                data={"name": "fkhjguwye kjbhjyegw hasbjegfu masbcjgvuywe bnvchgev"},
+                                headers={"Authorization": self.token}
+                                )
+        self.assertEqual(res.status_code, 400)
+        self.assertIn('"error": "Bucket name should not exceed 50 characters"', str(res.data))
+
+    def test_api_expects_new_bucket_names_during_updates(self):
+        """Test api api_expects_new_bucket_names_during_updates"""
+
+        self.client().post("/bucketlists/v1.0/", data={"name": "bucket 1"},
+                           headers={"Authorization": self.token}
+                           )
+        res = self.client().put("/bucketlists/v1.0/1",
+                                headers={"Authorization": self.token}
+                                )
+        self.assertEqual(res.status_code, 400)
+        self.assertIn('"name": "No new name provided"', str(res.data))
+
+    def test_api_rejects_non_existent_bucketlist_ids_during_update(self):
+        """Test API can reject non-existent bucketlist ids during updates."""
+
+        self.client().post("/bucketlists/v1.0/", data={"name": "live to be 100"},
+                           headers={"Authorization": self.token})
+        result = self.client().put("/bucketlists/v1.0/5", data={"name": "bogus"},
+                                   headers={"Authorization": self.token})
+
+        self.assertEqual(result.status_code, 404)
+        self.assertIn('"error": "the given bucket id -5- does not exist"', str(result.data))
+
+
+
     def test_api_can_get_all_bucketlists_for_current_user(self):
         """Test API can get bucketlists for current user (GET request)."""
 
-        self.client().post("/bucketlists/v1.0/", data={"name": "make billions"}, headers={"Authorization":self.token})
-        self.client().post("/bucketlists/v1.0/", data={"name": "live to be 100"}, headers={"Authorization":self.token})
+        self.client().post("/bucketlists/v1.0/", data={"name": "make billions"},
+                           headers={"Authorization":self.token})
+        self.client().post("/bucketlists/v1.0/", data={"name": "live to be 100"},
+                           headers={"Authorization":self.token})
 
         res3 = self.client().get("/bucketlists/v1.0/", headers={"Authorization":self.token})
         self.assertEqual(res3.status_code, 200)
@@ -176,8 +306,10 @@ class BucketlistTestCase(unittest.TestCase):
     def test_api_can_get_bucketlist_by_id(self):
         """Test API can get a single bucketlist by using it's id."""
 
-        self.client().post("/bucketlists/v1.0/", data={"name": "live to be 100"}, headers={"Authorization": self.token})
-        result = self.client().get("/bucketlists/v1.0/1", headers={"Authorization": self.token})
+        self.client().post("/bucketlists/v1.0/", data={"name": "live to be 100"},
+                           headers={"Authorization": self.token})
+        result = self.client().get("/bucketlists/v1.0/1",
+                                   headers={"Authorization": self.token})
 
         self.assertEqual(result.status_code, 200)
         self.assertIn("live to be 100", str(result.data))
@@ -203,7 +335,8 @@ class BucketlistTestCase(unittest.TestCase):
     def test_bucketlist_deletion(self):
         """Test API can delete an existing bucketlist. (DELETE request)."""
 
-        self.client().post("/bucketlists/v1.0/", data={"name": "make billions"}, headers={"Authorization": self.token})
+        self.client().post("/bucketlists/v1.0/", data={"name": "make billions"},
+                           headers={"Authorization": self.token})
         self.client().delete("/bucketlists/v1.0/1", headers={"Authorization": self.token})
         res2 = self.client().get("/bucketlists/v1.0/1", headers={"Authorization": self.token})
 
@@ -259,8 +392,10 @@ class BucketlistTestCase(unittest.TestCase):
     def test_can_delete_an_item_in_bucketlist(self):
         """Test API can delete an item in bucketlist. (DELETE request)."""
 
-        self.client().post("/bucketlists/v1.0/", data={"name": "make billions"}, headers={"Authorization": self.token})
-        res2 = self.client().post("/bucketlists/v1.0/1/items/", data={"description": "make app"}, headers={"Authorization": self.token})
+        self.client().post("/bucketlists/v1.0/", data={"name": "make billions"},
+                           headers={"Authorization": self.token})
+        res2 = self.client().post("/bucketlists/v1.0/1/items/", data={"description": "make app"},
+                                  headers={"Authorization": self.token})
         self.assertEqual(res2.status_code, 201)
         self.client().delete("/bucketlists/v1.0/1/items/1",
                              data={"description": "updated app"},
