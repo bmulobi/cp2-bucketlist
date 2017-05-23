@@ -35,11 +35,6 @@ class BucketlistTestCase(unittest.TestCase):
             db.session.remove()
             db.drop_all()
 
-    def test_app_settings_configuration(self):
-        """Test app settings"""
-        app_settings = app_config["development"]
-        self.assertEqual(app_settings, "development")
-
     def test_prodcution_database_path(self):
         """Test path to production database"""
         database = os.getenv("DATABASE_URL")
@@ -165,7 +160,7 @@ class BucketlistTestCase(unittest.TestCase):
     def test_api_rejects_search_parameter_greater_than_30_characters(self):
         """Test api rejects > 30 search parameter"""
 
-        res = self.client().get("/bucketlists/v1.0/?q=awhfguwtf jwhguyewgfu jsdhyugytuewgf djbcjygu",
+        res = self.client().get("/bucketlists/v1.0/?q=awhfguwtfjwhguyewgfujsdhyugytuewgfdjbcjygu",
                                 headers={"Authorization": self.token}
                                 )
         self.assertEqual(res.status_code, 400)
