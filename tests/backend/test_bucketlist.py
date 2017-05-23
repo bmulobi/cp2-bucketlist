@@ -3,6 +3,7 @@ import os
 import unittest, time
 
 from app import create_app, db, models
+from instance.config import app_config
 
 
 class BucketlistTestCase(unittest.TestCase):
@@ -36,7 +37,7 @@ class BucketlistTestCase(unittest.TestCase):
 
     def test_app_settings_configuration(self):
         """Test app settings"""
-        app_settings = os.getenv("APP_SETTINGS")
+        app_settings = app_config["development"]
         self.assertEqual(app_settings, "development")
 
     def test_prodcution_database_path(self):
