@@ -231,7 +231,7 @@ class BucketListsAPI(Resource):
 
         # get logged in user
         user = g.user
-        limit = app_config[os.getenv("APP_SETTINGS")].BUCKETLISTS_PER_PAGE
+        limit = app_config["development"].BUCKETLISTS_PER_PAGE
 
         # get page to display
         page = args["page"]
@@ -257,13 +257,13 @@ class BucketListsAPI(Resource):
             return {"error": "Limit has to be an integer"}, 400
         # ensure limit does not violate (min=1 and max=100)
         if limit:
-            if limit > app_config[os.getenv("APP_SETTINGS")].MAX_BUCKETLISTS_PER_REQUEST:
-                limit = app_config[os.getenv("APP_SETTINGS")].MAX_BUCKETLISTS_PER_REQUEST
+            if limit > app_config["development"].MAX_BUCKETLISTS_PER_REQUEST:
+                limit = app_config["development"].MAX_BUCKETLISTS_PER_REQUEST
             if limit < 1:
-                limit = app_config[os.getenv("APP_SETTINGS")].BUCKETLISTS_PER_PAGE
+                limit = app_config["development"].BUCKETLISTS_PER_PAGE
         else:
             # default limit
-            limit = app_config[os.getenv("APP_SETTINGS")].BUCKETLISTS_PER_PAGE
+            limit = app_config["development"].BUCKETLISTS_PER_PAGE
         # if user gave search term
         if query:
 
