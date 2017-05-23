@@ -252,11 +252,11 @@ class BucketListsAPI(Resource):
         # get per page limit
         limit = args["limit"]
 
-        # ensure given limit is an integer
-        if not str(limit).isdigit():
-            return {"error": "Limit has to be an integer"}, 400
         # ensure limit does not violate (min=1 and max=100)
         if limit:
+            # ensure given limit is an integer
+            if not str(limit).isdigit():
+                return {"error": "Limit has to be an integer"}, 400
             if limit > app_config["development"].MAX_BUCKETLISTS_PER_REQUEST:
                 limit = app_config["development"].MAX_BUCKETLISTS_PER_REQUEST
             if limit < 1:
