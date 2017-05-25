@@ -1,17 +1,23 @@
 machine:
   python:
     version: 3.6.1
-
+  environment:
+    FLASK_APP: run.py
+    SECRET: mulobi-bernard-silla-cp2-bucketlist-ENV
+    APP_SETTTINGS: development
+    DATABASE_URL: postgresql://localhost/buckets
+    
 dependencies:
   post:
     - pip install -r requirements.txt
 
 test:
   override:
-    - createdb bucketlist_db;
+    - createdb buckets;
     - createdb test_db;
     - rm -rf migrations
-    - python manage.py databases init
-    - python manage.py databases migrate
-    - python manage.py databases upgrade
-    - nosetests
+    - python manage.py db init
+    - python manage.py db migrate
+    - python manage.py db upgrade
+    - nosetests -v
+
