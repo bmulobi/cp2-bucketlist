@@ -19,13 +19,13 @@ class DevelopmentConfig(Config):
     DEBUG = True
     BUCKETLISTS_PER_PAGE = 20
     MAX_BUCKETLISTS_PER_REQUEST = 100
-    SQLALCHEMY_DATABASE_URI = "postgresql://@localhost/buckets"
+    SQLALCHEMY_DATABASE_URI = os.getenv("HEROKU_POSTGRESQL_NAVY_URL")
 
 
 class TestingConfig(Config):
     """Configurations for Testing, with a separate test database."""
     TESTING = True
-    SQLALCHEMY_DATABASE_URI = "postgresql://@localhost/test_db"
+    SQLALCHEMY_DATABASE_URI = os.getenv("HEROKU_POSTGRESQL_NAVY_URL")
     DEBUG = True
 
 
