@@ -1,5 +1,5 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![CircleCI](https://circleci.com/gh/bmulobi/cp2-bucketlist/tree/development.svg?style=svg)](https://circleci.com/gh/bmulobi/cp2-bucketlist/tree/development)
+# [![CircleCI](https://circleci.com/gh/bmulobi/cp2-bucketlist/tree/development.svg?style=svg)](https://circleci.com/gh/bmulobi/cp2-bucketlist/tree/development)
 [![Codacy Badge](https://api.codacy.com/project/badge/Grade/4930f6247bb44a1c83867907305e1f9b)](https://www.codacy.com/app/bmulobi/cp2-bucketlist?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=bmulobi/cp2-bucketlist&amp;utm_campaign=Badge_Grade)
 [![Codacy Badge](https://api.codacy.com/project/badge/Coverage/4930f6247bb44a1c83867907305e1f9b)](https://www.codacy.com/app/bmulobi/cp2-bucketlist?utm_source=github.com&utm_medium=referral&utm_content=bmulobi/cp2-bucketlist&utm_campaign=Badge_Coverage)
 # cp2-bucketlist application - FLask-RESTful API
